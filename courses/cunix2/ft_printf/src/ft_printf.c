@@ -1,212 +1,172 @@
-#include "../../libft/libft.h"
-#include <stddef.h>
-#include <stdlib.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <unistd.h>
 
-#include <stdio.h>
+#define STDOUT  1
 
-int ft_to_string(int val, char *buf);
-void print_filler(char *filler, int amount);
-void print(char *string);
-void reset_format(int *is_formated, int *f_min_width, int *left_side, int *is_sign);
-
-
-int ft_printf(char *format, ...)
+#include "format_param_t.h"
+#include "chunks.h"
+#include "resolvers.h"
+#include "buffer.h"
+/* main code */
+int ft_printf(const char *format, ...)
 {
-    va_list arg_list;
-    int number_of_chars = 0;
+    va_list args;
+    va_start(args, format);
 
-    int int_value;
-    char *string_value;
-    char char_value;
-    char buffer[13];
+    unsigned int num_of_chunks = chunk_count(format);
+    char **chunks = (char **) malloc(sizeof(char *) * (num_of_chunks + 1));
 
-    int is_formated = 0;
-    int f_min_width = 0;
-    int is_sign = 0;   // 0 - default, 1 - sign is obl., 2 - space is no sign
-    int left_side = 0; // 0 -default, 1 - allign. left, 2 - fill with zeros
-    int size_of_string;
-
-    va_start(arg_list, format);
-
-    for (int i = 0; format[i] != 0; i++)
+    while (*format != '\0')
     {
-        if (format[i] != '%' && is_formated == 0)
+        if (*format == '%')
         {
-            write(1, &format[i], sizeof(char));
-            number_of_chars++;
-            continue;
+            format_param_t *format_param = format_resolver(format);
+
+            switch (format_param->type)
+            {
+                case 'd':
+                case 'i':
+                    int num = va_arg(args, int);
+                    *chunks = num_resolver(format_param, num);
+                    break;
+                case 'c':
+                    char ch = va_arg(args, int);
+                    *chunks = char_resolver(format_param, ch);
+                    break;
+                case 's':
+                    const char *str = va_arg(args, const char *);
+                    *chunks = str_resolver(format_param, str);
+                    break;
+                case '%':
+                    *chunks = escseq_resolver(format_param);
+                    break;
+                default:
+                    NULL;
+                    break;
+            }
+
+            format = format_param->end;
+            free(format_param);
+        }
+        else
+        {
+            *chunks = create_buff(format);
+            format = next_param(format);
         }
 
-        i = is_formated ? i : i + 1;
+        chunks++;
+    }
+    *chunks = NULL;
+    chunks -= num_of_chunks;
 
-        switch (format[i])
+    unsigned int res_str_len = 0;
+    while (*chunks != NULL)
+    {
+        res_str_len += buff_len(*chunks);
+        chunks++;
+    }
+    chunks -= num_of_chunks;
+
+    char *res_str = (char *) malloc(sizeof(char) * (res_str_len + 1));
+    unsigned int chunk_len;
+    while (*chunks != NULL)
+    {
+        chunk_len = buff_len(*chunks);
+        while ((**chunks != '\0'))
         {
-            case 'd':
-            case 'i':
-                int_value = va_arg(arg_list, int);
-                size_of_string = ft_to_string(int_value, buffer);
-
-                char *sign = int_value < 0 ? "-" : (is_sign == 1 ? "+" : (is_sign == 2 ? " " : ""));
-                size_of_string = sign[0] == 0 ? size_of_string : size_of_string + 1;
-
-                string_value = buffer;
-                if (f_min_width <= size_of_string)
-                {
-                    write(1, sign, sizeof(char));
-                    print(string_value);
-                }
-                else if (left_side == 0)
-                {
-                    print_filler(" ", f_min_width - size_of_string);
-                    write(1, sign, sizeof(char));
-                    print(string_value);
-                }
-                else if (left_side == 1)
-                {
-                    write(1, sign, sizeof(char));
-                    print(string_value);
-                    print_filler(" ", f_min_width - size_of_string);
-                }
-                else if (left_side == 2)
-                {
-                    write(1, sign, sizeof(char));
-                    print_filler("0", f_min_width - size_of_string);
-                    print(string_value);
-                }
-                reset_format(&is_formated, &f_min_width, &left_side, &is_sign);
-                break;
-            case 'c':
-                char_value = va_arg(arg_list, int);
-                string_value = &char_value;
-                write(1, string_value, sizeof(char));
-                reset_format(&is_formated, &f_min_width, &left_side, &is_sign);
-                break;
-            case 's':
-                string_value = va_arg(arg_list, char *);
-                size_of_string = 0;
-                while (string_value[size_of_string++])
-                    ;
-                size_of_string--;
-
-                if (f_min_width <= size_of_string)
-                {
-                    print(string_value);
-                }
-                else if (left_side == 0)
-                {
-                    print_filler(" ", f_min_width - size_of_string);
-                    print(string_value);
-                }
-                else if (left_side == 1)
-                {
-                    print(string_value);
-                    print_filler(" ", f_min_width - size_of_string);
-                }
-                else if (left_side == 2)
-                {
-                    print_filler("0", f_min_width - size_of_string);
-                    print(string_value);
-                }
-                reset_format(&is_formated, &f_min_width, &left_side, &is_sign);
-                break;
-            case '%':
-                write(1, "%", sizeof(char));
-                reset_format(&is_formated, &f_min_width, &left_side, &is_sign);
-                break;
-            default:
-                is_formated = 1;
-                f_min_width = 0;
-
-                for (; format[i] != 's' && format[i] != 'c' && format[i] != 'i' && format[i] != 'd'; i++)
-                {
-                    if (format[i] >= '0' && format[i] <= '9')
-                    {
-                        f_min_width *= 10;
-                        f_min_width += (format[i] - '0');
-                    }
-
-                    if (f_min_width > 0)
-                    {
-                        continue;
-                    }
-
-                    is_sign = is_sign != 0 ? is_sign : format[i] == '+' ? 1
-                              : format[i] == ' '   ? 2
-                              : 0;
-
-                    left_side = left_side != 0 ? left_side : format[i] == '-' ? 1
-                                : format[i] == '0'   ? 2
-                                : 0;
-                }
-                i--;
+            *res_str++ = *(*chunks)++;
         }
+        *chunks -= chunk_len;
+        free(*chunks);
+        chunks++;
     }
+    chunks -= num_of_chunks;
+    free(chunks);
 
-    va_end(arg_list);
+    *res_str = '\0';
+    res_str -= res_str_len;
 
-    return number_of_chars;
+    write(STDOUT, res_str, res_str_len);
+    return res_str_len;
 }
 
-void print_filler(char *filler, int amount)
+int ft_sprintf(char *s, const char *format, ...)
 {
-    for (int i = 0; i < amount; i++)
+    va_list args;
+    va_start(args, format);
+
+    unsigned int num_of_chunks = chunk_count(format);
+    char **chunks = (char **) malloc(sizeof(char *) * (num_of_chunks + 1));
+
+    while (*format != '\0')
     {
-        write(1, filler, sizeof(char));
-    }
-}
+        if (*format == '%')
+        {
+            format_param_t *format_param = format_resolver(format);
 
-void print(char *string)
-{
-    for (; *string; string++)
+            switch (format_param->type)
+            {
+                case 'd':
+                case 'i':
+                    int num = va_arg(args, int);
+                    *chunks = num_resolver(format_param, num);
+                    break;
+                case 'c':
+                    char chr = va_arg(args, int);
+                    *chunks = char_resolver(format_param, chr);
+                    break;
+                case 's':
+                    const char *str = va_arg(args, const char *);
+                    *chunks = str_resolver(format_param, str);
+                    break;
+                case '%':
+                    *chunks = escseq_resolver(format_param);
+                    break;
+                default:
+                    NULL;
+                    break;
+            }
+
+            format = format_param->end;
+            free(format_param);
+        }
+        else
+        {
+            *chunks = create_buff(format);
+            format = next_param(format);
+        }
+
+        chunks++;
+    }
+    *chunks = NULL;
+    chunks -= num_of_chunks;
+
+    unsigned int res_str_len = 0;
+    while (*chunks != NULL)
     {
-        write(1, string, sizeof(char));
+        res_str_len += buff_len(*chunks);
+        chunks++;
     }
-}
+    chunks -= num_of_chunks;
 
-int ft_to_string(int val, char *buf)
-{
-    int string_size = 0;
-    long digit = 1;
-    int nmb2 = val;
-
-    if (val == 0)
+    unsigned int chunk_len;
+    while (*chunks != NULL)
     {
-        buf[0] = '0';
-        buf[1] = '\0';
-        return 1;
+        chunk_len = buff_len(*chunks);
+        while ((**chunks != '\0'))
+        {
+            *s++ = *(*chunks)++;
+        }
+        *chunks -= chunk_len;
+        free(*chunks);
+        chunks++;
     }
+    chunks -= num_of_chunks;
+    free(chunks);
 
-    for (int i = 0; nmb2 != 0; i++)
-    {
-        nmb2 /= 10;
-        digit *= 10;
-        string_size++;
-    }
+    *s = '\0';
+    s -= res_str_len;
 
-    digit /= 10;
-
-    int i = 0;
-    if (val < 0)
-    {
-        val = -val;
-    }
-    for (; i < string_size; i++)
-    {
-        buf[i] = (val / digit) + '0';
-        val %= digit;
-        digit /= 10;
-    }
-
-    buf[i] = 0;
-    return string_size;
-}
-
-void reset_format(int *is_formated, int *f_min_width, int *left_side, int *is_sign)
-{
-    *is_formated = 0;
-    *f_min_width = 0;
-    *is_sign = 0;
-    *left_side = 0;
+    return res_str_len;
 }
