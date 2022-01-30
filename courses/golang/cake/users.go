@@ -24,7 +24,6 @@ type UserService struct {
 	repository UserRepository
 }
 type UserRegisterParams struct {
-	// If it looks strange, read about golang struct tags
 	Email        string `json:"email"`
 	Password     string `json:"password"`
 	FavoriteCake string `json:"favorite_cake"`
@@ -100,6 +99,7 @@ func (u *UserService) Register(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("registered"))
 }
+
 func handleError(err error, w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnprocessableEntity)
 	w.Write([]byte(err.Error()))

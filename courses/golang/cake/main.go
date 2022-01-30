@@ -33,22 +33,18 @@ func main() {
 		panic(err)
 	}
 
-	r.HandleFunc("/user/me", jwtService.jwtAuth(users, getCakeHandler)).Methods(http.MethodGet)
-	r.HandleFunc("/cake", logRequest(jwtService.jwtAuth(users,
-		getCakeHandler))).
-		Methods(http.MethodGet)
-	r.HandleFunc("/user/register", logRequest(userService.
-		Register)).
-		Methods(http.MethodPost)
-	r.HandleFunc("/user/jwt", logRequest(wrapJwt(jwtService,
-		userService.JWT))).
-		Methods(http.MethodPost)
+	r.HandleFunc("/cake", logRequest(jwtService.jwtAuth(users, getCakeHandler))).Methods(http.MethodGet)
+
+	r.HandleFunc("/user/register", logRequest(userService.Register)).Methods(http.MethodPost)
+
+	r.HandleFunc("/user/jwt", logRequest(wrapJwt(jwtService, userService.JWT))).Methods(http.MethodPost)
+
+	// r.HandleFunc("/user/favorite_cake", logRequest(userService.UpdateCakeHandler)).Methods(http.MethodPut)
 
 	srv := http.Server{
 		Addr:    ":8080",
 		Handler: r,
 	}
-
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 	go func() {

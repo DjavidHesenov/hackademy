@@ -17,36 +17,60 @@ func NewInMemoryUserStorage() *InMemoryUserStorage {
 	}
 }
 
-func (userStorage *InMemoryUserStorage) Add(key string, u User) error {
-	_, ok := userStorage.storage[key]
+func (userStorage *InMemoryUserStorage) Add(email string, user User) error {
+	userStorage.lock.Lock()
+	defer userStorage.lock.Unlock()
+
+	_, ok := userStorage.storage[email]
+
 	if ok {
-		err := errors.New("this user is already exists")
-		return err
+		return errors.New("user already exists")
+	} else {
+		userStorage.storage[email] = user
 	}
-	userStorage.storage[key] = u
+
 	return nil
 }
 
-func (userStorage *InMemoryUserStorage) Get(key string) (User, error) {
-	if u, ok := userStorage.storage[key]; ok {
-		return u, nil
+func (userStorage *InMemoryUserStorage) Get(email string) (User, error) {
+	userStorage.lock.Lock()
+	defer userStorage.lock.Unlock()
+
+	user, ok := userStorage.storage[email]
+
+	if !ok {
+		return User{}, errors.New("invalid login params")
 	}
-	err := errors.New("there is no such user")
-	empty := User{}
-	return empty, err
+
+	return user, nil
 }
 
-func (userStorage *InMemoryUserStorage) Update(key string, u User) error {
-	userStorage.storage[key] = u
+func (userStorage *InMemoryUserStorage) Update(email string, newUser User) error {
+	userStorage.lock.Lock()
+	defer userStorage.lock.Unlock()
+
+	_, ok := userStorage.storage[email]
+
+	if !ok {
+		return errors.New("invalid login params")
+	}
+
+	userStorage.storage[email] = newUser
+
 	return nil
 }
 
-func (userStorage *InMemoryUserStorage) Delete(key string) (User, error) {
-	if u, ok := userStorage.storage[key]; ok {
-		delete(userStorage.storage, key)
-		return u, nil
+func (userStorage *InMemoryUserStorage) Delete(email string) (User, error) {
+	userStorage.lock.Lock()
+	defer userStorage.lock.Unlock()
+
+	user, ok := userStorage.storage[email]
+
+	if !ok {
+		return User{}, errors.New("invalid login params")
 	}
-	err := errors.New("there is no such user")
-	empty := User{}
-	return empty, err
+
+	delete(userStorage.storage, email)
+
+	return user, nil
 }
