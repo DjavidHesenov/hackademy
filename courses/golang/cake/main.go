@@ -11,8 +11,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func getCakeHandler(w http.ResponseWriter, r *http.Request, u User) {
-	w.Write([]byte(u.FavoriteCake))
+func getCakeHandler(w http.ResponseWriter, _ *http.Request, u User, _ UserRepository) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("[" + u.Email + "], your favourite cake is " + u.FavoriteCake))
 }
 
 func wrapJwt(
@@ -24,8 +25,34 @@ func wrapJwt(
 	}
 }
 
-func main() {
+func newRouter(u *UserService, jwtService *JWTService) *mux.Router {
 	r := mux.NewRouter()
+
+	r.HandleFunc("/user/register", u.Register).Methods(http.MethodPost)
+	r.HandleFunc("/user/jwt", wrapJwt(jwtService, u.JWT)).Methods(http.MethodPost)
+	r.HandleFunc("/user/me", jwtService.jwtAuth(u.repository, getCakeHandler)).Methods(http.MethodGet)
+	r.HandleFunc("/user/favorite_cake", jwtService.jwtAuth(u.repository, updateCakeHandler)).Methods(http.MethodPut)
+	r.HandleFunc("/user/email", jwtService.jwtAuth(u.repository, updateEmailHandler)).Methods(http.MethodPut)
+	r.HandleFunc("/user/password", jwtService.jwtAuth(u.repository, updatePasswordHandler)).Methods(http.MethodPut)
+
+	return r
+}
+
+func newLoggingRouter(u *UserService, jwtService *JWTService) *mux.Router {
+	r := mux.NewRouter()
+
+	r.HandleFunc("/cake", logRequest(jwtService.jwtAuth(u.repository, getCakeHandler))).Methods(http.MethodGet)
+	r.HandleFunc("/user/register", logRequest(u.Register)).Methods(http.MethodPost)
+	r.HandleFunc("/user/jwt", logRequest(wrapJwt(jwtService, u.JWT))).Methods(http.MethodPost)
+	r.HandleFunc("/user/me", logRequest(jwtService.jwtAuth(u.repository, getCakeHandler))).Methods(http.MethodGet)
+	r.HandleFunc("/user/favorite_cake", logRequest(jwtService.jwtAuth(u.repository, updateCakeHandler))).Methods(http.MethodPut)
+	r.HandleFunc("/user/email", jwtService.jwtAuth(u.repository, updateEmailHandler)).Methods(http.MethodPut)
+	r.HandleFunc("/user/password", logRequest(jwtService.jwtAuth(u.repository, updatePasswordHandler))).Methods(http.MethodPut)
+
+	return r
+}
+
+func main() {
 	users := NewInMemoryUserStorage()
 	userService := UserService{repository: users}
 	jwtService, err := NewJWTService("pubkey.rsa", "privkey.rsa")
@@ -33,13 +60,7 @@ func main() {
 		panic(err)
 	}
 
-	r.HandleFunc("/cake", logRequest(jwtService.jwtAuth(users, getCakeHandler))).Methods(http.MethodGet)
-
-	r.HandleFunc("/user/register", logRequest(userService.Register)).Methods(http.MethodPost)
-
-	r.HandleFunc("/user/jwt", logRequest(wrapJwt(jwtService, userService.JWT))).Methods(http.MethodPost)
-
-	// r.HandleFunc("/user/favorite_cake", logRequest(userService.UpdateCakeHandler)).Methods(http.MethodPut)
+	r := newLoggingRouter(&userService, jwtService)
 
 	srv := http.Server{
 		Addr:    ":8080",

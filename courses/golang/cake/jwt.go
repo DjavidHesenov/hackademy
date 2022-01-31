@@ -64,7 +64,7 @@ func (u *UserService) JWT(
 	w.Write([]byte(token))
 }
 
-type ProtectedHandler func(rw http.ResponseWriter, r *http.Request, u User)
+type ProtectedHandler func(rw http.ResponseWriter, r *http.Request, u User, users UserRepository)
 
 func (j *JWTService) jwtAuth(
 	users UserRepository,
@@ -85,6 +85,6 @@ func (j *JWTService) jwtAuth(
 			rw.Write([]byte("unauthorized"))
 			return
 		}
-		h(rw, r, user)
+		h(rw, r, user, users)
 	}
 }
