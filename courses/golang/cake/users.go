@@ -12,6 +12,9 @@ type User struct {
 	Email          string
 	PasswordDigest string
 	FavoriteCake   string
+	Role           Role
+	Banned         bool
+	BanHistory     BanHistory
 }
 type UserRepository interface {
 	Add(string, User) error
@@ -90,6 +93,9 @@ func (u *UserService) Register(w http.ResponseWriter, r *http.Request) {
 		Email:          params.Email,
 		PasswordDigest: string(passwordDigest),
 		FavoriteCake:   params.FavoriteCake,
+		Role:           UserRole,
+		Banned:         false,
+		BanHistory:     BanHistory{},
 	}
 	err = u.repository.Add(params.Email, newUser)
 	if err != nil {

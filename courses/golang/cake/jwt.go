@@ -55,6 +55,14 @@ func (u *UserService) JWT(
 		handleError(errors.New("invalid login params"), w)
 		return
 	}
+
+	if user.Banned {
+		handleUnauthError(errors.New("you are banned! Reason: "+
+			user.BanHistory[len(user.BanHistory)-1].Reason),
+			w)
+		return
+	}
+
 	token, err := jwtService.GenearateJWT(user)
 	if err != nil {
 		handleError(err, w)
@@ -66,10 +74,8 @@ func (u *UserService) JWT(
 
 type ProtectedHandler func(rw http.ResponseWriter, r *http.Request, u User, users UserRepository)
 
-func (j *JWTService) jwtAuth(
-	users UserRepository,
-	h ProtectedHandler,
-) http.HandlerFunc {
+func (j *JWTService) jwtAuthRoleExecutor(minimalAccessRole Role, users UserRepository, h ProtectedHandler) http.HandlerFunc {
+
 	return func(rw http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		token := strings.TrimPrefix(authHeader, "Bearer ")
@@ -85,6 +91,30 @@ func (j *JWTService) jwtAuth(
 			rw.Write([]byte("unauthorized"))
 			return
 		}
+
+		if user.Banned {
+			handleUnauthError(errors.New("you are banned! Reason: "+
+				user.BanHistory[len(user.BanHistory)-1].Reason),
+				rw)
+			return
+		}
+		if user.Role < minimalAccessRole {
+			handleUnauthError(errors.New("permission denied"), rw)
+			return
+		}
+
 		h(rw, r, user, users)
 	}
+}
+
+func (j *JWTService) jwtAuth(users UserRepository, h ProtectedHandler) http.HandlerFunc {
+	return j.jwtAuthRoleExecutor(UserRole, users, h)
+}
+
+func (j *JWTService) jwtAuthAdmin(users UserRepository, h ProtectedHandler) http.HandlerFunc {
+	return j.jwtAuthRoleExecutor(AdminRole, users, h)
+}
+
+func (j *JWTService) jwtAuthSuperAdmin(users UserRepository, h ProtectedHandler) http.HandlerFunc {
+	return j.jwtAuthRoleExecutor(SuperAdminRole, users, h)
 }
