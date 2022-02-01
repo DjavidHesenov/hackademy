@@ -38,7 +38,7 @@ func child() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	must(syscall.Chroot("/home/djavid"))
+	must(syscall.Chroot("/home/djavid/ubuntufs"))
 	must(os.Chdir("/"))
 	must(syscall.Mount("proc", "proc", "proc", 0, ""))
 
