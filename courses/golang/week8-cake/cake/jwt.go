@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"errors"
-	"github.com/DjavidHesenov/hackademy/tree/golang/courses/golang/week8-cake/cake/jwt"
+	"github.com/actpohabtNS/cake-factory/jwt"
 	"net/http"
 	"strings"
 )
